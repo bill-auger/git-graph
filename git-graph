@@ -1,0 +1,97 @@
+#!/bin/bash
+
+readonly JOIN_CHAR='~'
+readonly HRULE_CHAR='-'
+readonly GIT_LOG_CMD="git log --graph --date=short -n 12 --pretty=format:"
+readonly LOG_FMT="%h$JOIN_CHAR%ad$JOIN_CHAR%an$JOIN_CHAR[%GS]$JOIN_CHAR[%G?]$JOIN_CHAR%s%d"
+readonly LOG_REGEX="^(.+) (.+)$JOIN_CHAR(.+)$JOIN_CHAR(.+)$JOIN_CHAR\[(.*)\]$JOIN_CHAR\[(.)\]$JOIN_CHAR(.*)$"
+readonly CWHITE='\033[0;37m'
+readonly CGREEN='\033[0;32m'
+readonly CYELLOW='\033[0;33m'
+readonly CRED='\033[0;31m'
+readonly CEND='\033[0m'
+readonly CGOOD=$CGREEN
+readonly CUNKNOWN=$CYELLOW
+readonly CBAD=$CRED
+readonly CNONE=$CWHITE
+readonly ID_COLOR=$CNONE
+readonly DATE_COLOR=$CNONE
+readonly AUTHOR_COLOR=$CNONE
+readonly MSG_COLOR=$CNONE
+
+declare -a graphs=()
+declare -a ids=()
+declare -a dates=()
+declare -a authors=()
+declare -a sigs=()
+declare -a msgs=()
+author_w=0
+
+
+# helpers
+
+function filterJoinChars # (string)
+{
+   echo $1 | tr "$JOIN_CHAR" " "
+}
+
+
+# compile results
+while read -r commit
+do
+
+
+# TODO: graph colors and fork/merge node lines
+# printf "commit='%s'\n" "$commit" ; [[ $commit =~ $LOG_REGEX ]] && printf "graph='%s'\n" "${BASH_REMATCH[ 1]}" || printf "graph NFG='%s'\n" "$commit"
+
+
+[[ $commit =~ $LOG_REGEX ]] || continue
+
+   graph=${BASH_REMATCH[ 1]} ; graphs=( ${graphs[@]}  "${graph// /$JOIN_CHAR}"    ) ;
+   id=${BASH_REMATCH[    2]} ; ids=(    ${ids[@]}     "$id"                       ) ;
+   date=${BASH_REMATCH[  3]} ; dates=(  ${dates[@]}   "$date"                     ) ;
+   author=${BASH_REMATCH[4]} ; authors=(${authors[@]} "${author// /$JOIN_CHAR}"   ) ;
+   sig=${BASH_REMATCH[   5]} ; sigs=(   ${sigs[@]}    "`expr "$sig" : '\(.*\) <'`") ;
+   stat=${BASH_REMATCH[  6]} ; stats=(  ${stats[@]}   "$stat"                     ) ;
+   msg=${BASH_REMATCH[   7]} ; msgs=(   ${msgs[@]}    "${msg// /$JOIN_CHAR}"      ) ;
+   [ "$sig" ] ||               sigs=(   ${sigs[@]}    "$JOIN_CHAR"                )
+
+   case $stat in
+        'G') sig_colors=(${sig_colors[@]} "$CGOOD"   ) ;; # valid signature
+        'X') sig_colors=(${sig_colors[@]} "$CGOOD"   ) ;; # valid signature that has expired
+        'U') sig_colors=(${sig_colors[@]} "$CUNKNOWN") ;; # valid signature with unknown validity
+        'E') sig_colors=(${sig_colors[@]} "$CUNKNOWN") ;; # cannot be checked (e.g. missing key)
+        'B') sig_colors=(${sig_colors[@]} "$CBAD"    ) ;; # bad signature
+        'Y') sig_colors=(${sig_colors[@]} "$CBAD"    ) ;; # valid signature made by an expired key
+        'R') sig_colors=(${sig_colors[@]} "$CBAD"    ) ;; # valid signature made by a revoked key
+        'N') sig_colors=(${sig_colors[@]} "$CNONE"   ) ;; # no signature
+   esac
+
+   [ ${#author} -gt $author_w ] && author_w=${#author}
+done <<<`$GIT_LOG_CMD"$LOG_FMT"`
+
+# pretty print results
+for (( result_n = 0 ; result_n < ${#ids[@]} ; result_n++ ))
+do graph=${graphs[$result_n]}
+   id=${ids[$result_n]}
+   date=${dates[$result_n]}
+   author=${authors[$result_n]}
+   stat=${stats[$result_n]}
+   msg=${msgs[$result_n]}
+   sig=${sigs[$result_n]}
+   sig_color=${sig_colors[$result_n]}
+   pad="%$(($author_w - ${#author}))s"
+
+  [ "$ID_COLOR"                            ] && id_color=$ID_COLOR         || id_color=$sig_color
+  [ "$DATE_COLOR"                          ] && date_color=$DATE_COLOR     || date_color=$sig_color
+  [ "$AUTHOR_COLOR" -a "$author" != "$sig" ] && author_color=$AUTHOR_COLOR || author_color=$sig_color
+  [ "$MSG_COLOR"                           ] && msg_color=$MSG_COLOR       || msg_color=$sig_color
+
+#    printf "$graph_color$(filterJoinChars $graph) $CEND"
+   printf "$id_color$id $CEND"
+   printf "$date_color$date $CEND"
+   printf "$author_color$(filterJoinChars $author)$CEND"
+   printf "$msg_color:$pad $(filterJoinChars $msg)$CEND"
+   [ "$sig" != "$JOIN_CHAR" ] && printf " $sig_color[$sig]$CEND"
+   printf "\n"
+done
