@@ -3,12 +3,13 @@
 readonly JOIN_CHAR='~'
 readonly HRULE_CHAR='-'
 readonly GIT_LOG_CMD="git log --graph --date=short -n 12 --pretty=format:"
-readonly LOG_FMT="%h$JOIN_CHAR%ad$JOIN_CHAR%an$JOIN_CHAR[%GS]$JOIN_CHAR[%G?]$JOIN_CHAR%s%d"
-readonly LOG_REGEX="^(.+) (.+)$JOIN_CHAR(.+)$JOIN_CHAR(.+)$JOIN_CHAR\[(.*)\]$JOIN_CHAR\[(.)\]$JOIN_CHAR(.*)$"
+readonly LOG_FMT="%h$JOIN_CHAR%ad$JOIN_CHAR%an$JOIN_CHAR[%GS]$JOIN_CHAR[%G?]$JOIN_CHAR%s$JOIN_CHAR(%D)"
+readonly LOG_REGEX="^(.+) (.+)$JOIN_CHAR(.+)$JOIN_CHAR(.+)$JOIN_CHAR\[(.*)\]$JOIN_CHAR\[(.)\]$JOIN_CHAR(.*)$JOIN_CHAR\((.*)\)$"
 readonly CWHITE='\033[0;37m'
 readonly CGREEN='\033[0;32m'
 readonly CYELLOW='\033[0;33m'
 readonly CRED='\033[0;31m'
+readonly CBLUE='\033[0;34m'
 readonly CEND='\033[0m'
 readonly CGOOD=$CGREEN
 readonly CUNKNOWN=$CYELLOW
@@ -18,6 +19,7 @@ readonly ID_COLOR=$CNONE
 readonly DATE_COLOR=$CNONE
 readonly AUTHOR_COLOR=$CNONE
 readonly MSG_COLOR=$CNONE
+readonly REF_COLOR=$CBLUE
 
 declare -a graphs=()
 declare -a ids=()
@@ -25,15 +27,32 @@ declare -a dates=()
 declare -a authors=()
 declare -a sigs=()
 declare -a msgs=()
+declare -a refs=()
 author_w=0
 
 
 # helpers
 
+function DoesBranchExist # (a_branch_name)
+{
+  is_known_branch=$(git branch | grep -G " $1$")
+  [ "$is_known_branch" ] && echo 1 || echo 0
+}
+
+function joinChars # (string)
+{
+  echo "${1// /$JOIN_CHAR}"
+}
+
 function filterJoinChars # (string)
 {
    echo $1 | tr "$JOIN_CHAR" " "
 }
+
+
+# parse cli args
+((`DoesBranchExist $1`)) && readonly BRANCH=$1
+[ "$1" != "$BRANCH" ] && echo "no such branch '$1'"
 
 
 # compile results
@@ -47,14 +66,16 @@ do
 
 [[ $commit =~ $LOG_REGEX ]] || continue
 
-   graph=${BASH_REMATCH[ 1]} ; graphs=( ${graphs[@]}  "${graph// /$JOIN_CHAR}"    ) ;
-   id=${BASH_REMATCH[    2]} ; ids=(    ${ids[@]}     "$id"                       ) ;
-   date=${BASH_REMATCH[  3]} ; dates=(  ${dates[@]}   "$date"                     ) ;
-   author=${BASH_REMATCH[4]} ; authors=(${authors[@]} "${author// /$JOIN_CHAR}"   ) ;
-   sig=${BASH_REMATCH[   5]} ; sigs=(   ${sigs[@]}    "`expr "$sig" : '\(.*\) <'`") ;
-   stat=${BASH_REMATCH[  6]} ; stats=(  ${stats[@]}   "$stat"                     ) ;
-   msg=${BASH_REMATCH[   7]} ; msgs=(   ${msgs[@]}    "${msg// /$JOIN_CHAR}"      ) ;
-   [ "$sig" ] ||               sigs=(   ${sigs[@]}    "$JOIN_CHAR"                )
+   graph=${BASH_REMATCH[     1]}                ; graphs=( ${graphs[@]}  $(joinChars "$graph" )) ;
+   id=${BASH_REMATCH[        2]}                ; ids=(    ${ids[@]}     $(joinChars "$id"    )) ;
+   date=${BASH_REMATCH[      3]}                ; dates=(  ${dates[@]}   $(joinChars "$date"  )) ;
+   author=${BASH_REMATCH[    4]}                ; authors=(${authors[@]} $(joinChars "$author")) ;
+   sig=`expr "${BASH_REMATCH[5]}" : '\(.*\) <'` ; sigs=(   ${sigs[@]}    $(joinChars "$sig"   )) ;
+   stat=${BASH_REMATCH[      6]}                ; stats=(  ${stats[@]}   $(joinChars "$stat"  )) ;
+   msg=${BASH_REMATCH[       7]}                ; msgs=(   ${msgs[@]}    $(joinChars "$msg"   )) ;
+   ref=${BASH_REMATCH[       8]}                ; refs=(   ${refs[@]}    $(joinChars "$ref"   )) ;
+   [ "$sig" ] ||                                  sigs=(   ${sigs[@]}    "$JOIN_CHAR"          )
+   [ "$ref" ] ||                                  refs=(   ${refs[@]}    "$JOIN_CHAR"          )
 
    case $stat in
         'G') sig_colors=(${sig_colors[@]} "$CGOOD"   ) ;; # valid signature
@@ -68,7 +89,7 @@ do
    esac
 
    [ ${#author} -gt $author_w ] && author_w=${#author}
-done <<<`$GIT_LOG_CMD"$LOG_FMT"`
+done <<<`$GIT_LOG_CMD"$LOG_FMT" $BRANCH`
 
 # pretty print results
 for (( result_n = 0 ; result_n < ${#ids[@]} ; result_n++ ))
@@ -76,9 +97,10 @@ do graph=${graphs[$result_n]}
    id=${ids[$result_n]}
    date=${dates[$result_n]}
    author=${authors[$result_n]}
+   sig=${sigs[$result_n]}
    stat=${stats[$result_n]}
    msg=${msgs[$result_n]}
-   sig=${sigs[$result_n]}
+   ref=${refs[$result_n]}
    sig_color=${sig_colors[$result_n]}
    pad="%$(($author_w - ${#author}))s"
 
@@ -86,12 +108,14 @@ do graph=${graphs[$result_n]}
   [ "$DATE_COLOR"                          ] && date_color=$DATE_COLOR     || date_color=$sig_color
   [ "$AUTHOR_COLOR" -a "$author" != "$sig" ] && author_color=$AUTHOR_COLOR || author_color=$sig_color
   [ "$MSG_COLOR"                           ] && msg_color=$MSG_COLOR       || msg_color=$sig_color
+  [ "$REF_COLOR"                           ] && ref_color=$REF_COLOR       || ref_color=$sig_color
 
 #    printf "$graph_color$(filterJoinChars $graph) $CEND"
    printf "$id_color$id $CEND"
    printf "$date_color$date $CEND"
    printf "$author_color$(filterJoinChars $author)$CEND"
    printf "$msg_color:$pad $(filterJoinChars $msg)$CEND"
-   [ "$sig" != "$JOIN_CHAR" ] && printf " $sig_color[$sig]$CEND"
+   [ "$ref" != "$JOIN_CHAR" ] && printf " $ref_color($(filterJoinChars $ref))$CEND"
+   [ "$sig" != "$JOIN_CHAR" ] && printf " $sig_color[$(filterJoinChars $sig)]$CEND"
    printf "\n"
 done
