@@ -81,6 +81,7 @@ do
    stat=${BASH_REMATCH[   7]} ; stats=(  ${stats[@]}   $(joinChars "$stat"  )) ;
    msg=${BASH_REMATCH[    8]} ; msgs=(   ${msgs[@]}    $(joinChars "$msg"   )) ;
    ref=${BASH_REMATCH[    9]} ; refs=(   ${refs[@]}    $(joinChars "$ref"   )) ;
+   [ "$msg" ] ||                msgs=(   ${msgs[@]}    "<EMPTY>"             )
    [ "$sig" ] ||                sigs=(   ${sigs[@]}    "$JOIN_CHAR"          )
    [ "$ref" ] ||                refs=(   ${refs[@]}    "$JOIN_CHAR"          )
 
