@@ -58,8 +58,8 @@ function FilterJoinChars # (a_string)
 
 
 # parse cli args
-((`DoesBranchExist $1`)) && readonly BRANCH=$1
-[ "$1" != "$BRANCH" ] && echo "no such branch '$1'"
+[ -f "$1" ] || ((`DoesBranchExist $1`)) && readonly BRANCH=$1
+[ "$BRANCH" != "$1" ] && echo -e "no such file or branch '$1'\n"
 
 # compile results
 while read -r commit
