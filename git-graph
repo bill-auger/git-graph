@@ -43,16 +43,15 @@ author_w=0
 
 function DoesBranchExist # (a_branch_name)
 {
-  is_known_branch=$(git branch | grep -G " $1$")
-  [ "$is_known_branch" ] && echo 1 || echo 0
+  [ "$(git branch | grep -G " $1$")" ] && echo 1 || echo 0
 }
 
-function joinChars # (string)
+function JoinChars # (a_string)
 {
   echo "${1// /$JOIN_CHAR}"
 }
 
-function filterJoinChars # (string)
+function FilterJoinChars # (a_string)
 {
    echo $1 | tr "$JOIN_CHAR" " "
 }
@@ -62,25 +61,22 @@ function filterJoinChars # (string)
 ((`DoesBranchExist $1`)) && readonly BRANCH=$1
 [ "$1" != "$BRANCH" ] && echo "no such branch '$1'"
 
-
 # compile results
 while read -r commit
 do
-
-
 # TODO: graph colors and fork/merge node lines
 # printf "commit='%s'\n" "$commit" ; [[ $commit =~ $LOG_REGEX ]] && printf "graph='%s'\n" "${BASH_REMATCH[1]}" || printf "graph NFG='%s'\n" "$commit"
 
 [[ $commit =~ $LOG_REGEX ]] || continue
 
-   graph=${BASH_REMATCH[  1]} ; graphs=( ${graphs[@]}  $(joinChars "$graph" )) ;
-   id=${BASH_REMATCH[     2]} ; ids=(    ${ids[@]}     $(joinChars "$id"    )) ;
-   date=${BASH_REMATCH[   3]} ; dates=(  ${dates[@]}   $(joinChars "$date"  )) ;
-   author=${BASH_REMATCH[ 4]} ; authors=(${authors[@]} $(joinChars "$author")) ;
-   sig=${BASH_REMATCH[    6]} ; sigs=(   ${sigs[@]}    $(joinChars "$sig"   )) ;
-   stat=${BASH_REMATCH[   7]} ; stats=(  ${stats[@]}   $(joinChars "$stat"  )) ;
-   msg=${BASH_REMATCH[    8]} ; msgs=(   ${msgs[@]}    $(joinChars "$msg"   )) ;
-   ref=${BASH_REMATCH[    9]} ; refs=(   ${refs[@]}    $(joinChars "$ref"   )) ;
+   graph=${BASH_REMATCH[  1]} ; graphs=( ${graphs[@]}  $(JoinChars "$graph" )) ;
+   id=${BASH_REMATCH[     2]} ; ids=(    ${ids[@]}     $(JoinChars "$id"    )) ;
+   date=${BASH_REMATCH[   3]} ; dates=(  ${dates[@]}   $(JoinChars "$date"  )) ;
+   author=${BASH_REMATCH[ 4]} ; authors=(${authors[@]} $(JoinChars "$author")) ;
+   sig=${BASH_REMATCH[    6]} ; sigs=(   ${sigs[@]}    $(JoinChars "$sig"   )) ;
+   stat=${BASH_REMATCH[   7]} ; stats=(  ${stats[@]}   $(JoinChars "$stat"  )) ;
+   msg=${BASH_REMATCH[    8]} ; msgs=(   ${msgs[@]}    $(JoinChars "$msg"   )) ;
+   ref=${BASH_REMATCH[    9]} ; refs=(   ${refs[@]}    $(JoinChars "$ref"   )) ;
    [ "$msg" ] ||                msgs=(   ${msgs[@]}    "<EMPTY>"             )
    [ "$sig" ] ||                sigs=(   ${sigs[@]}    "$JOIN_CHAR"          )
    [ "$ref" ] ||                refs=(   ${refs[@]}    "$JOIN_CHAR"          )
@@ -119,12 +115,12 @@ do graph=${graphs[$result_n]}
   [ "$MSG_COLOR"                ] && msg_color=$MSG_COLOR       || msg_color=$sig_color
   [ "$REF_COLOR"                ] && ref_color=$REF_COLOR       || ref_color=$sig_color
 
-#    printf "$graph_color$(filterJoinChars $graph) $CEND"
+#    printf "$graph_color$(FilterJoinChars $graph) $CEND"
    printf "$id_color$id $CEND"
    printf "$date_color$date $CEND"
-   printf "$author_color$(filterJoinChars $author)$CEND"
-   printf "$msg_color:$pad $(filterJoinChars $msg)$CEND"
-   [ "$ref" != "$JOIN_CHAR" ] && printf " $ref_color($(filterJoinChars $ref))$CEND"
-   [ "$sig" != "$JOIN_CHAR" ] && printf " $sig_color[$(filterJoinChars $sig)]$CEND"
+   printf "$author_color$(FilterJoinChars $author)$CEND"
+   printf "$msg_color:$pad $(FilterJoinChars $msg)$CEND"
+   [ "$ref" != "$JOIN_CHAR" ] && printf " $ref_color($(FilterJoinChars $ref))$CEND"
+   [ "$sig" != "$JOIN_CHAR" ] && printf " $sig_color[$(FilterJoinChars $sig)]$CEND"
    printf "\n"
 done
