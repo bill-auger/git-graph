@@ -108,12 +108,11 @@ do graph=${graphs[$result_n]}
    sig_color=${sig_colors[$result_n]}
    pad="%$(($author_w - ${#author}))s"
 
-  [ "$ID_COLOR"                 ] && id_color=$ID_COLOR         || id_color=$sig_color
-  [ "$DATE_COLOR"               ] && date_color=$DATE_COLOR     || date_color=$sig_color
-  [ "$AUTHOR_COLOR" != "$CNONE" ] && author_color=$AUTHOR_COLOR
-  [ "$author" == "$sig"         ] && author_color=$sig_color
-  [ "$MSG_COLOR"                ] && msg_color=$MSG_COLOR       || msg_color=$sig_color
-  [ "$REF_COLOR"                ] && ref_color=$REF_COLOR       || ref_color=$sig_color
+  [ "$ID_COLOR"         ] && id_color=$ID_COLOR      || id_color=$sig_color
+  [ "$DATE_COLOR"       ] && date_color=$DATE_COLOR  || date_color=$sig_color
+  [ "$author" == "$sig" ] && author_color=$sig_color || author_color=$AUTHOR_COLOR
+  [ "$MSG_COLOR"        ] && msg_color=$MSG_COLOR    || msg_color=$sig_color
+  [ "$REF_COLOR"        ] && ref_color=$REF_COLOR    || ref_color=$sig_color
 
 #    printf "$graph_color$(FilterJoinChars $graph) $CEND"
    printf "$id_color$id $CEND"
