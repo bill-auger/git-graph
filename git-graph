@@ -41,9 +41,14 @@ author_w=0
 
 # helpers
 
-function DoesBranchExist # (a_branch_name)
+function DoesBranchExist # (branch_name)
 {
   [ "$(git branch | grep -G " $1$")" ] && echo 1 || echo 0
+}
+
+function DoesTagExist # (tag_name)
+{
+  [ "$(git tag    | grep -G "$1$")"  ] && echo 1 || echo 0
 }
 
 function JoinChars # (a_string)
@@ -58,8 +63,8 @@ function FilterJoinChars # (a_string)
 
 
 # parse cli args
-[ -f "$1" ] || ((`DoesBranchExist $1`)) && readonly BRANCH=$1
-[ "$BRANCH" != "$1" ] && echo -e "no such file or branch '$1'\n"
+(( $(DoesBranchExist $1) )) || (( $(DoesTagExist $1) )) || [ -f "$1" ] && readonly REF=$1
+[ "$REF" != "$1" ] && echo -e "no such branch, tag, or file: '$1'\n"
 
 # compile results
 while read -r commit
@@ -93,7 +98,7 @@ do
    esac
 
    [ ${#author} -gt $author_w ] && author_w=${#author}
-done <<<`$GIT_LOG_CMD"$LOG_FMT" $BRANCH`
+done <<<$($GIT_LOG_CMD"$LOG_FMT" $REF)
 
 # pretty print results
 for (( result_n = 0 ; result_n < ${#ids[@]} ; result_n++ ))
