@@ -100,9 +100,10 @@ do
    stat=${BASH_REMATCH[   7]} ; stats=(  ${stats[@]}   $(JoinChars "$stat"  )) ;
    msg=${BASH_REMATCH[    8]} ; msgs=(   ${msgs[@]}    $(JoinChars "$msg"   )) ;
    ref=${BASH_REMATCH[    9]} ; refs=(   ${refs[@]}    $(JoinChars "$ref"   )) ;
-   [ "$msg" ] ||                msgs=(   ${msgs[@]}    "<EMPTY>"             )
-   [ "$sig" ] ||                sigs=(   ${sigs[@]}    "$JOIN_CHAR"          )
-   [ "$ref" ] ||                refs=(   ${refs[@]}    "$JOIN_CHAR"          )
+   [ "$msg"         ] ||        msgs=(   ${msgs[@]}    "<EMPTY>"             )
+   [ "$stat" == 'E' ] &&        sigs=(   ${sigs[@]}    "<UNKNOWN>"           ) || \
+   [ "$sig"         ] ||        sigs=(   ${sigs[@]}    "$JOIN_CHAR"          )
+   [ "$ref"         ] ||        refs=(   ${refs[@]}    "$JOIN_CHAR"          )
 
    case $stat in
         'G') sig_colors=(${sig_colors[@]} "$CGOOD"   ) ;; # valid signature
