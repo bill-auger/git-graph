@@ -28,7 +28,7 @@ readonly SIG_REGEX="\[(([^\(\)]*) + *\(?.*\)? *<.*>|)\]"
 readonly STAT_REGEX="\[(.)\]"
 readonly MSG_REGEX="(.*)"
 readonly REFS_REGEX="\((.*)\)"
-readonly GIT_LOG_CMD="git log --graph --date=short -n 12 --pretty=format:"
+readonly GIT_LOG_FMT="git log --graph --date=short -n %d --pretty=format:"
 readonly LOG_FMT="%h$JOIN_CHAR%ad$JOIN_CHAR%an$JOIN_CHAR[%GS]$JOIN_CHAR[%G?]$JOIN_CHAR%s$JOIN_CHAR(%D)"
 readonly LOG_REGEX="^$GRAPH_REGEX $ID_REGEX$JOIN_CHAR$DATE_REGEX$JOIN_CHAR$AUTHOR_REGEX$JOIN_CHAR$SIG_REGEX$JOIN_CHAR$STAT_REGEX$JOIN_CHAR$MSG_REGEX$JOIN_CHAR$REFS_REGEX$"
 readonly CWHITE='\033[0;37m'
@@ -81,8 +81,17 @@ function FilterJoinChars # (a_string)
 
 
 # parse cli args
+while getopts 'n:' arg
+do case "${arg}" in
+        n) n_commits="${OPTARG}" ;;
+        *) echo "Invalid argument: '${arg}'" ;;
+    esac
+done
+readonly N_COMMITS=${n_commits:-12}
+ref=${!OPTIND}
 (( $(DoesBranchExist $1) )) || (( $(DoesTagExist $1) )) || [ -f "$1" ] && readonly REF=$1
 [ "$REF" != "$1" ] && echo -e "no such branch, tag, or file: '$1'\n"
+
 
 # compile results
 while read -r commit
@@ -117,7 +126,7 @@ do
    esac
 
    [ ${#author} -gt $author_w ] && author_w=${#author}
-done <<<$($GIT_LOG_CMD"$LOG_FMT" $REF)
+done <<<$($(printf "$GIT_LOG_FMT" $N_COMMITS)"$LOG_FMT" $REF)
 
 # pretty print results
 for (( result_n = 0 ; result_n < ${#ids[@]} ; result_n++ ))
