@@ -18,6 +18,8 @@
 #  along with git-graph.  If not, see <http://www.gnu.org/licenses/>.
 
 
+# constants #
+
 readonly JOIN_CHAR='~'
 readonly HRULE_CHAR='-'
 readonly GRAPH_REGEX="(.+)"
@@ -47,6 +49,8 @@ readonly AUTHOR_COLOR=$CNONE
 readonly MSG_COLOR=$CNONE
 readonly REF_COLOR=$CBLUE
 
+# variables #
+
 declare -a graphs=()
 declare -a ids=()
 declare -a dates=()
@@ -57,16 +61,16 @@ declare -a refs=()
 author_w=0
 
 
-# helpers
+# helpers #
 
 function DoesBranchExist # (branch_name)
 {
-  [ "$(git branch | grep -G " $1$")" ] && echo 1 || echo 0
+  [ "$1" -a "$(git branch | grep -G " $1$")" ] && echo 1 || echo 0
 }
 
 function DoesTagExist # (tag_name)
 {
-  [ "$(git tag    | grep -G "$1$")"  ] && echo 1 || echo 0
+  [ "$1" -a "$(git tag    | grep -G "$1$")"  ] && echo 1 || echo 0
 }
 
 function JoinChars # (a_string)
@@ -80,6 +84,8 @@ function FilterJoinChars # (a_string)
 }
 
 
+# main entry #
+
 # parse cli args
 while getopts 'n:' arg
 do case "${arg}" in
@@ -89,9 +95,8 @@ do case "${arg}" in
 done
 readonly N_COMMITS=${n_commits:-12}
 ref=${!OPTIND}
-(( $(DoesBranchExist $1) )) || (( $(DoesTagExist $1) )) || [ -f "$1" ] && readonly REF=$1
-[ "$REF" != "$1" ] && echo -e "no such branch, tag, or file: '$1'\n"
-
+(( $(DoesBranchExist $ref) )) || (( $(DoesTagExist $ref) )) || [ -f "$ref" ] && \
+    ([ "$ref" ] && readonly REF=$ref || echo -e "no such branch, tag, or file: '$ref'\n")
 
 # compile results
 while read -r commit
