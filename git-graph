@@ -20,9 +20,14 @@
 # USAGE: git-graph [ -a | -n <N_COMMITS> | -u ] [ branch_name | tag_name | commit_id | file ]
 
 
+## configuration ##
+
+# eg: 'master', 'upstream/stable-1.0' - use tracking branch, if empty
+PUB_BRANCH=
+
+
 ## constants ##
 
-readonly USE_ANSI_COLOR=$( [[ "$1" == '--no-color' ]] && echo '0' || echo '1' )
 readonly JOIN_CHAR='~'
 readonly HRULE_CHAR='-'
 readonly GRAPH_REGEX="(.+)"
@@ -33,15 +38,15 @@ readonly SIG_REGEX="\[(([^\(\)]*) + *\(?.*\)? *<.*>|)\]"
 readonly STAT_REGEX="\[(.)\]"
 readonly MSG_REGEX="(.*)"
 readonly REFS_REGEX="\((.*)\)"
-readonly GIT_LOG_OPTS_FMT="--graph --date=short -n %d --pretty=format:"
-readonly GIT_LOG_FMT="%h${JOIN_CHAR}%ad${JOIN_CHAR}%an${JOIN_CHAR}[%GS]${JOIN_CHAR}[%G?]${JOIN_CHAR}%s${JOIN_CHAR}(%D)"
+readonly GIT_LOG_FMT="%%h${JOIN_CHAR}%%ad${JOIN_CHAR}%%an${JOIN_CHAR}[%%GS]${JOIN_CHAR}[%%G?]${JOIN_CHAR}%%s${JOIN_CHAR}(%%D)"
+readonly GIT_LOG_CMD_FMT="git log --graph --date=short -n %d --pretty=format:$GIT_LOG_FMT"
 readonly LOG_REGEX="^${GRAPH_REGEX} ${ID_REGEX}${JOIN_CHAR}${DATE_REGEX}${JOIN_CHAR}${AUTHOR_REGEX}${JOIN_CHAR}${SIG_REGEX}${JOIN_CHAR}${STAT_REGEX}${JOIN_CHAR}${MSG_REGEX}${JOIN_CHAR}${REFS_REGEX}$"
-readonly CWHITE=$(  (( $USE_ANSI_COLOR )) && echo '\033[0;37m')
-readonly CGREEN=$(  (( $USE_ANSI_COLOR )) && echo '\033[0;32m')
-readonly CYELLOW=$( (( $USE_ANSI_COLOR )) && echo '\033[0;33m')
-readonly CRED=$(    (( $USE_ANSI_COLOR )) && echo '\033[0;31m')
-readonly CBLUE=$(   (( $USE_ANSI_COLOR )) && echo '\033[1;34m')
-readonly CEND=$(    (( $USE_ANSI_COLOR )) && echo '\033[0m'   )
+readonly CWHITE='\033[0;37m'
+readonly CGREEN='\033[0;32m'
+readonly CYELLOW='\033[0;33m'
+readonly CRED='\033[0;31m'
+readonly CBLUE='\033[1;34m'
+readonly CEND='\033[0m'
 readonly CGOOD=$CGREEN
 readonly CUNKNOWN=$CYELLOW
 readonly CEXPIRED=$CYELLOW
@@ -53,24 +58,41 @@ readonly AUTHOR_COLOR=$CNONE
 readonly MSG_COLOR=$CNONE
 readonly REF_COLOR=$CBLUE
 readonly REF_ERR_MSG="no such ref or file:"
-N_COMMITS= # (deferred)
-REF=       # (deferred)
-
+declare -i USE_ANSI_COLOR=1 # (deferred)
+declare -i N_COMMITS=12     # (deferred)
+declare -i HIDE_MERGED=0    # (deferred)
+REF=                        # (deferred)
+FILE=                       # (deferred)
 
 
 ## variables ##
 
-declare -a graphs=()
-declare -a ids=()
-declare -a dates=()
-declare -a authors=()
-declare -a sigs=()
-declare -a msgs=()
-declare -a refs=()
-declare -i author_w=0
+declare -a Graphs=()
+declare -a Ids=()
+declare -a Dates=()
+declare -a Authors=()
+declare -a Sigs=()
+declare -a Stats=()
+declare -a Msgs=()
+declare -a Refs=()
+declare -a SigColors=()
+declare -i AuthorW=0
+declare -i NCommits=0
 
 
 ## helpers ##
+
+GetUpstreamBranch() # (local_branch)
+{
+  local local_branch=$1
+
+  git rev-parse --abbrev-ref $local_branch@{upstream} 2> /dev/null
+}
+
+GetCurrentBranch()
+{
+  git rev-parse --abbrev-ref HEAD
+}
 
 DoesBranchExist() # (branch_name)
 {
@@ -93,14 +115,38 @@ DoesCidExist() # (tag_name)
   [[ "$commit_id" ]] && git rev-parse --verify ${commit_id}^{commit} &> /dev/null
 }
 
-ValidateRef() # (ref) # where param is a branch_name, tag_name, commit_id, or file
+ValidateRef() # (ref) # where param is a branch_name, tag_name, commit_id
 {
   local ref=$1
 
-  DoesBranchExist $ref || DoesTagExist $ref ||
-  DoesCidExist    $ref || [[ -f "$ref"   ]] || ref=''
+  DoesBranchExist $ref || DoesTagExist $ref || DoesCidExist $ref || ref=''
 
   echo $ref ; [[ -n "$ref" ]] ;
+}
+
+ValidateParam() # (ref) # where param is a branch_name, tag_name, commit_id, or file
+{
+  local ref=$1
+
+  ref="$( ValidateRef $ref || [[ ! -f "$ref" ]] || echo $ref )"
+
+  echo $ref ; [[ -n "$ref" ]] ;
+}
+
+IsAncestor() # (ref_a ref_b)
+{
+  local ref_a=$1
+  local ref_b=$2
+
+  git merge-base --is-ancestor $ref_a $ref_b
+}
+
+Ancestor() # (ref_a ref_b)
+{
+  local ref_a=$1
+  local ref_b=$2
+
+  git merge-base $ref_a $ref_b
 }
 
 JoinChars() # (a_string)
@@ -118,92 +164,164 @@ FilterJoinChars() # (a_string)
 }
 
 
-## main entry ##
+## business ##
 
-# parse cli args
-while getopts 'an:u' arg
-do    case "${arg}" in
-           a) n_commits="$(git rev-list --count HEAD)" ;;
-           n) n_commits="${OPTARG}"                    ;;
-           u) hide_merged=1                            ;;
-           *) echo "Invalid argument: '${arg}'"        ;;
-      esac
-done
+Init() # (cli_args*)
+{
+  local arg
+  local valid_param
+  local valid_ref
+  local is_valid_param
+  local is_valid_ref
+  local is_file
 
-# process cli args
-param=${!OPTIND} ; REF=$(ValidateRef "$param") ;
-[[ -z "$param" || -n "$REF" ]] || ! echo "$REF_ERR_MSG $param" || exit 1
+  # parse cli args
+  while getopts 'acn:u' arg
+  do    case "${arg}" in
+             a) N_COMMITS="$(git rev-list --count HEAD)" ;;
+             c) USE_ANSI_COLOR=0                         ;;
+             n) N_COMMITS="${OPTARG}"                    ;;
+             u) HIDE_MERGED=1                            ;;
+             *) echo "Invalid argument: '${arg}'"        ;;
+        esac
+  done
+  shift $(( OPTIND - 1 ))
 
-readonly N_COMMITS=${n_commits:-12}
-readonly REF=$( ( (( ! hide_merged )) && echo "$REF"       ) ||
-                ( [[ -n "$REF"     ]] && echo "$REF..HEAD" )  )
+  # process cli args
+  valid_param=$(ValidateParam "$1")
+  valid_ref=$(  ValidateRef   "$1")
+  is_valid_param=$( [[ -n "$valid_param"                ]] ; echo $((!$?)) ; )
+  is_valid_ref=$(   [[ -n "$valid_ref"                  ]] ; echo $((!$?)) ; )
+  is_file=$(        (( is_valid_param && ! is_valid_ref )) ; echo $((!$?)) ; )
+  REF=$( (( is_file || ! $# )) && echo HEAD         || echo $valid_ref)
+  FILE=$((( is_file         )) && echo $valid_param || echo $2        )
+  PUB_BRANCH=${PUB_BRANCH:-$(GetUpstreamBranch $(GetCurrentBranch))}
+
+  readonly USE_ANSI_COLOR
+  readonly N_COMMITS
+  readonly HIDE_MERGED
+  readonly REF
+  readonly FILE
+  readonly PUB_BRANCH
 
 
-# echo "param=$param ValidateRef=$(ValidateRef "$param") REF=$REF" # DEBUG
+# echo "is_valid_param=$is_valid_param is_valid_ref=$is_valid_ref is_file=$is_file REF=$REF FILE=$FILE" # DEBUG
 
 
-# compile results
-while read -r commit
-do    [[ $commit =~ $LOG_REGEX ]] || continue
+  (( ! $# )) || (( is_valid_param )) || ! echo "$REF_ERR_MSG $1"
+}
+
+CompileResults()
+{
+  local log_data graph id date author sig stat msg ref
+
+  # reset data
+  Graphs=() Ids=() Dates=() Authors=() Sigs=() Stats=() Msgs=() Refs=() SigColors=()
+
+  # compile results
+  while read -r log_data
+  do    [[ $log_data =~ $LOG_REGEX ]] || continue
 
 
 # TODO: graph colors and fork/merge node lines
-# printf "commit='%s'\n" "$commit" ; [[ $commit =~ $LOG_REGEX ]] && printf "graph='%s'\n" "${BASH_REMATCH[1]}" || printf "graph NFG='%s'\n" "$commit"
+# printf "log_data='%s'\n" "$log_data" ; [[ $log_data =~ $LOG_REGEX ]] && printf "graph='%s'\n" "${BASH_REMATCH[1]}" || printf "graph NFG='%s'\n" "$log_data"
 
 
-      graph=${BASH_REMATCH[  1]} ; graphs=( ${graphs[@]}  $(JoinChars "$graph" )) ;
-      id=${BASH_REMATCH[     2]} ; ids=(    ${ids[@]}     $(JoinChars "$id"    )) ;
-      date=${BASH_REMATCH[   3]} ; dates=(  ${dates[@]}   $(JoinChars "$date"  )) ;
-      author=${BASH_REMATCH[ 4]} ; authors=(${authors[@]} $(JoinChars "$author")) ;
-      sig=${BASH_REMATCH[    6]} ; sigs=(   ${sigs[@]}    $(JoinChars "$sig"   )) ;
-      stat=${BASH_REMATCH[   7]} ; stats=(  ${stats[@]}   $(JoinChars "$stat"  )) ;
-      msg=${BASH_REMATCH[    8]} ; msgs=(   ${msgs[@]}    $(JoinChars "$msg"   )) ;
-      ref=${BASH_REMATCH[    9]} ; refs=(   ${refs[@]}    $(JoinChars "$ref"   )) ;
-      [[ -n "$msg"      ]] ||      msgs=(   ${msgs[@]}    "<EMPTY>"             )
-      [[ "$stat" == 'E' ]] &&      sigs=(   ${sigs[@]}    "<UNKNOWN>"           ) || \
-      [[ -n "$sig"      ]] ||      sigs=(   ${sigs[@]}    "$JOIN_CHAR"          )
-      [[ -n "$ref"      ]] ||      refs=(   ${refs[@]}    "$JOIN_CHAR"          )
+        graph=${BASH_REMATCH[  1]} ; Graphs=( ${Graphs[*]}  $(JoinChars "$graph" )) ;
+        id=${BASH_REMATCH[     2]} ; Ids=(    ${Ids[*]}     $(JoinChars "$id"    )) ;
+        date=${BASH_REMATCH[   3]} ; Dates=(  ${Dates[*]}   $(JoinChars "$date"  )) ;
+        author=${BASH_REMATCH[ 4]} ; Authors=(${Authors[*]} $(JoinChars "$author")) ;
+        sig=${BASH_REMATCH[    6]} ; Sigs=(   ${Sigs[*]}    $(JoinChars "$sig"   )) ;
+        stat=${BASH_REMATCH[   7]} ; Stats=(  ${Stats[*]}   $(JoinChars "$stat"  )) ;
+        msg=${BASH_REMATCH[    8]} ; Msgs=(   ${Msgs[*]}    $(JoinChars "$msg"   )) ;
+        ref=${BASH_REMATCH[    9]} ; Refs=(   ${Refs[*]}    $(JoinChars "$ref"   )) ;
+        [[ -n "$msg"      ]] ||      Msgs=(   ${Msgs[*]}    "<EMPTY>"             )
+        [[ "$stat" == 'E' ]] &&      Sigs=(   ${Sigs[*]}    "<UNKNOWN>"           ) || \
+        [[ -n "$sig"      ]] ||      Sigs=(   ${Sigs[*]}    "$JOIN_CHAR"          )
+        [[ -n "$ref"      ]] ||      Refs=(   ${Refs[*]}    "$JOIN_CHAR"          )
 
-      case $stat in
-           'G') sig_colors=(${sig_colors[@]} "$CGOOD"   ) ;; # good signature
-           'X') sig_colors=(${sig_colors[@]} "$CGOOD"   ) ;; # good signature that has expired
-           'U') sig_colors=(${sig_colors[@]} "$CUNKNOWN") ;; # good signature with unknown trust
-           'E') sig_colors=(${sig_colors[@]} "$CUNKNOWN") ;; # cannot be checked (e.g. missing key)
-           'B') sig_colors=(${sig_colors[@]} "$CBAD"    ) ;; # bad signature
-           'Y') sig_colors=(${sig_colors[@]} "$CEXPIRED") ;; # good signature made by an expired key
-           'R') sig_colors=(${sig_colors[@]} "$CBAD"    ) ;; # good signature made by a revoked key
-           'N') sig_colors=(${sig_colors[@]} "$CNONE"   ) ;; # no signature
-      esac
+        (( ${#author} > AuthorW )) && AuthorW=${#author}
+  done
+}
 
-      (( ${#author} > author_w )) && author_w=${#author}
-# done < <($(printf "git log $GIT_LOG_OPTS_FMT" $N_COMMITS)"$GIT_LOG_FMT" $REF)
-done < <(echo "$($(printf "git log $GIT_LOG_OPTS_FMT" $N_COMMITS)"$GIT_LOG_FMT" $REF)")
+PrintReport() # (header)
+{
+  local header="$1"
+  local hrule=$(printf "%$(( ( ( ${#Ids[0]} + 11 + AuthorW ) - ${#header} ) / 2 ))s" ' ' | tr ' ' '-')
 
-# pretty print results
-for (( result_n = 0 ; result_n < ${#ids[@]} ; result_n++ ))
-do  graph=${graphs[$result_n]}
-    id=${ids[$result_n]}
-    date=${dates[$result_n]}
-    author=${authors[$result_n]}
-    sig=${sigs[$result_n]}
-    stat=${stats[$result_n]}
-    msg=${msgs[$result_n]}
-    ref=${refs[$result_n]}
-    sig_color=${sig_colors[$result_n]}
-    pad="%$(( $author_w - ${#author} ))s"
+  local result_n graph id date author sig stat msg ref pad
+  local has_author_sig sig_color id_color date_color author_color msg_color ref_color cend
 
-   [[ -n "$ID_COLOR"         ]] && id_color=$ID_COLOR      || id_color=$sig_color
-   [[ -n "$DATE_COLOR"       ]] && date_color=$DATE_COLOR  || date_color=$sig_color
-   [[    "$author" == "$sig" ]] && author_color=$sig_color || author_color=$AUTHOR_COLOR
-   [[ -n "$MSG_COLOR"        ]] && msg_color=$MSG_COLOR    || msg_color=$sig_color
-   [[ -n "$REF_COLOR"        ]] && ref_color=$REF_COLOR    || ref_color=$sig_color
+  # pretty print results
+  (( ! HIDE_MERGED )) && echo "|<${hrule} ${header} ${hrule:$(( ! ( AuthorW % 2 ) ))}>|"
+  for (( result_n = 0 ; result_n < ${#Ids[*]} ; ++result_n ))
+  do  graph=${Graphs[$result_n]}
+      id=${Ids[$result_n]}
+      date=${Dates[$result_n]}
+      author=${Authors[$result_n]}
+      sig=${Sigs[$result_n]}
+      stat=${Stats[$result_n]}
+      msg=${Msgs[$result_n]}
+      ref=${Refs[$result_n]}
+      pad=$(printf "%$(( AuthorW - ${#author} ))s" '')
 
-#    printf "$graph_color$(FilterJoinChars $graph) $CEND"
-    printf "$id_color$id $CEND"
-    printf "$date_color$date $CEND"
-    printf "$author_color%s$CEND" "$(FilterJoinChars $author)"
-    printf "$msg_color:$pad %s$CEND" '' "$(FilterJoinChars $msg)"
-    [[ "$ref" != "$JOIN_CHAR" ]] && printf " $ref_color($(FilterJoinChars $ref))$CEND"
-    [[ "$sig" != "$JOIN_CHAR" ]] && printf " $sig_color[$(FilterJoinChars $sig)]$CEND"
-    printf "\n"
-done
+      if   (( USE_ANSI_COLOR ))
+      then has_author_sig=$([[ "$author" == "$sig" ]] ; echo $((!$?)) ;)
+           sig_color=$(case "$stat" in
+                            'G') echo $CGOOD    ;; # good signature
+                            'X') echo $CGOOD    ;; # good signature that has expired
+                            'U') echo $CUNKNOWN ;; # good signature with unknown trust
+                            'E') echo $CUNKNOWN ;; # cannot be checked (e.g. missing key)
+                            'B') echo $CBAD     ;; # bad signature
+                            'Y') echo $CEXPIRED ;; # good signature made by an expired key
+                            'R') echo $CBAD     ;; # good signature made by a revoked key
+                            'N') echo $CNONE    ;; # no signature
+                       esac)
+           id_color=$ID_COLOR
+           date_color=$DATE_COLOR
+           author_color=$((( has_author_sig )) && echo $sig_color || echo $AUTHOR_COLOR)
+           msg_color=$MSG_COLOR
+           ref_color=$REF_COLOR
+           cend=$CEND
+      fi
+
+#     printf "$graph_color$(FilterJoinChars $graph) $cend"
+      printf "| $id_color$id$cend "
+      printf "$date_color$date$cend "
+      printf "$author_color%s$cend"    "$(FilterJoinChars $author)"
+      printf " $pad| $msg_color%s$cend" "$(FilterJoinChars $msg   )"
+      [[ "$ref" != "$JOIN_CHAR" ]] && printf " $ref_color($(FilterJoinChars $ref))$cend"
+      [[ "$sig" != "$JOIN_CHAR" ]] && printf " $sig_color[$(FilterJoinChars $sig)]$cend"
+      printf "\n"
+  done
+
+  NCommits=$(( NCommits + ${#Ids[*]} ))
+}
+
+
+Main()
+{
+  local ancestor=$(Ancestor $PUB_BRANCH $REF)
+  local log_cmd header
+
+  if   [[ -z "$PUB_BRANCH" ]]
+  then log_cmd="$(printf "$GIT_LOG_CMD_FMT" $N_COMMITS)" header='NO UPSTREAM'
+       CompileResults < <($log_cmd              $REF $FILE ; echo ;) ; PrintReport "${header}" ;
+  elif ! IsAncestor $PUB_BRANCH $REF && [[ -z ${ancestor:-} ]]
+  then log_cmd="$(printf "$GIT_LOG_CMD_FMT" $N_COMMITS)" header='UNRELATED'
+       CompileResults < <($log_cmd              $REF $FILE ; echo ;) ; PrintReport ${header} ;
+  else log_cmd="$(printf "$GIT_LOG_CMD_FMT" $N_COMMITS)" header='UNMERGED'
+       CompileResults < <($log_cmd $ancestor..$REF $FILE ; echo ;) ; PrintReport ${header} ;
+
+       if   (( ! HIDE_MERGED && NCommits < N_COMMITS ))
+       then (( ! NCommits )) && echo "    <None>"
+            log_cmd="$(printf "$GIT_LOG_CMD_FMT" $(( N_COMMITS - NCommits )))" header='MERGED'
+            CompileResults < <($log_cmd $ancestor $FILE  ; echo ;) ; PrintReport ${header} ;
+       fi
+  fi
+}
+
+
+## main entry ##
+
+Init "$@" && Main
