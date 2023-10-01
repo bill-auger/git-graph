@@ -28,6 +28,7 @@ PUB_BRANCH=
 
 ## constants ##
 
+readonly DEF_HASH_LEN=7 # git may extend to the minimum unique prefix
 readonly JOIN_CHAR='~'
 readonly HRULE_CHAR='-'
 readonly GRAPH_REGEX="(.+)"
@@ -39,7 +40,7 @@ readonly STAT_REGEX="\[(.)\]"
 readonly MSG_REGEX="(.*)"
 readonly REFS_REGEX="\((.*)\)"
 readonly GIT_LOG_FMT="%%h${JOIN_CHAR}%%ad${JOIN_CHAR}%%an${JOIN_CHAR}[%%GS]${JOIN_CHAR}[%%G?]${JOIN_CHAR}%%s${JOIN_CHAR}(%%D)"
-readonly GIT_LOG_CMD_FMT="git log --graph --date=short -n %d --pretty=format:$GIT_LOG_FMT"
+readonly GIT_LOG_CMD_FMT="git log --graph --date=short -n %d --pretty=format:$GIT_LOG_FMT --abbrev=${DEF_HASH_LEN}"
 readonly LOG_REGEX="^${GRAPH_REGEX} ${ID_REGEX}${JOIN_CHAR}${DATE_REGEX}${JOIN_CHAR}${AUTHOR_REGEX}${JOIN_CHAR}${SIG_REGEX}${JOIN_CHAR}${STAT_REGEX}${JOIN_CHAR}${MSG_REGEX}${JOIN_CHAR}${REFS_REGEX}$"
 readonly CWHITE='\033[0;37m'
 readonly CGREEN='\033[0;32m'
