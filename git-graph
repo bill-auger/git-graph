@@ -2,7 +2,7 @@
 
 #  git-graph - print pretty git commit logs
 #
-#  Copyright 2016-2018,2020,2023 bill-auger <https://github.com/bill-auger>
+#  Copyright 2016-2018,2020,2023-2024 bill-auger <https://github.com/bill-auger>
 #
 #  git-graph is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 
 ## configuration ##
 
-# eg: 'master', 'upstream/stable-1.0' - use tracking branch, if empty
+# PUB_BRANCH eg: 'master', 'upstream/stable-1.0' - is remote tracking branch, if empty
 PUB_BRANCH=
 
 
@@ -46,18 +46,18 @@ readonly CWHITE='\033[0;37m'
 readonly CGREEN='\033[0;32m'
 readonly CYELLOW='\033[0;33m'
 readonly CRED='\033[0;31m'
-readonly CBLUE='\033[1;34m'
+readonly CAQUA='\033[1;36m'
 readonly CEND='\033[0m'
 readonly CGOOD=$CGREEN
 readonly CUNKNOWN=$CYELLOW
 readonly CEXPIRED=$CYELLOW
 readonly CBAD=$CRED
 readonly CNONE=$CWHITE
-readonly ID_COLOR=$CNONE
+readonly HASH_COLOR=$CNONE
 readonly DATE_COLOR=$CNONE
 readonly AUTHOR_COLOR=$CNONE
 readonly MSG_COLOR=$CNONE
-readonly REF_COLOR=$CBLUE
+readonly REF_COLOR=$CAQUA
 readonly REF_ERR_MSG="no such ref or file:"
 declare -i USE_ANSI_COLOR=1 # (deferred)
 declare -i N_COMMITS=12     # (deferred)
@@ -83,7 +83,7 @@ declare -i NCommits=0
 
 ## helpers ##
 
-GetUpstreamBranch() # (local_branch)
+GetUpstreamBranch() # ( local_branch )
 {
   local local_branch=$1
 
@@ -95,28 +95,28 @@ GetCurrentBranch()
   git rev-parse --abbrev-ref HEAD
 }
 
-DoesBranchExist() # (branch_name)
+DoesBranchExist() # ( branch_name )
 {
   local branch_name=$1
 
   [[ "$branch_name" && "$(git branch --all --list $branch_name)" ]]
 }
 
-DoesTagExist() # (tag_name)
+DoesTagExist() # ( tag_name )
 {
   local tag_name=$1
 
   [[ "$tag_name" && "$(git tag | grep -G "$tag_name$")" ]]
 }
 
-DoesCidExist() # (tag_name)
+DoesCidExist() # ( tag_name )
 {
   local commit_id=$1
 
   [[ "$commit_id" ]] && git rev-parse --verify ${commit_id}^{commit} &> /dev/null
 }
 
-ValidateRef() # (ref) # where param is a branch_name, tag_name, commit_id
+ValidateRef() # ( ref ) # where param is a branch_name, tag_name, commit_id
 {
   local ref=$1
 
@@ -125,7 +125,7 @@ ValidateRef() # (ref) # where param is a branch_name, tag_name, commit_id
   echo $ref ; [[ -n "$ref" ]] ;
 }
 
-ValidateParam() # (ref) # where param is a branch_name, tag_name, commit_id, or file
+ValidateParam() # ( ref ) # where param is a branch_name, tag_name, commit_id, or file
 {
   local ref=$1
 
@@ -134,7 +134,7 @@ ValidateParam() # (ref) # where param is a branch_name, tag_name, commit_id, or 
   echo $ref ; [[ -n "$ref" ]] ;
 }
 
-IsAncestor() # (ref_a ref_b)
+IsAncestor() # ( ref_a ref_b )
 {
   local ref_a=$1
   local ref_b=$2
@@ -142,7 +142,7 @@ IsAncestor() # (ref_a ref_b)
   git merge-base --is-ancestor $ref_a $ref_b
 }
 
-Ancestor() # (ref_a ref_b)
+Ancestor() # ( ref_a ref_b )
 {
   local ref_a=$1
   local ref_b=$2
@@ -150,14 +150,14 @@ Ancestor() # (ref_a ref_b)
   git merge-base $ref_a $ref_b
 }
 
-JoinChars() # (a_string)
+JoinChars() # ( "a_spaced_string" )
 {
-  local a_string=$1
+  local a_string="$1"
 
   echo "${a_string// /$JOIN_CHAR}"
 }
 
-FilterJoinChars() # (a_string)
+FilterJoinChars() # ( an_unspaced_string )
 {
   local a_string=$1
 
@@ -167,7 +167,7 @@ FilterJoinChars() # (a_string)
 
 ## business ##
 
-Init() # (cli_args*)
+Init() # ( cli_args* )
 {
   local arg
   local valid_param
@@ -245,13 +245,13 @@ CompileResults()
   done
 }
 
-PrintReport() # (header)
+PrintReport() # ( "header" )
 {
   local header="$1"
   local hrule=$(printf "%$(( ( ( ${#Ids[0]} + 11 + AuthorW ) - ${#header} ) / 2 ))s" ' ' | tr ' ' '-')
 
   local result_n graph id date author sig stat msg ref pad
-  local has_author_sig sig_color id_color date_color author_color msg_color ref_color cend
+  local has_author_sig sig_color hash_color date_color author_color msg_color ref_color
 
   # pretty print results
   (( ! HIDE_MERGED )) && echo "|<${hrule} ${header} ${hrule:$(( ! ( AuthorW % 2 ) ))}>|"
@@ -270,35 +270,33 @@ PrintReport() # (header)
       then has_author_sig=$([[ "$author" == "$sig" ]] ; echo $((!$?)) ;)
            sig_color=$(case "$stat" in
                             'G') echo $CGOOD    ;; # good signature
-                            'X') echo $CGOOD    ;; # good signature that has expired
-                            'U') echo $CUNKNOWN ;; # good signature with unknown trust
+                            'X') echo $CEXPIRED ;; # good signature that has expired
+                            'U') echo $CGOOD    ;; # good signature with unknown trust
                             'E') echo $CUNKNOWN ;; # cannot be checked (e.g. missing key)
                             'B') echo $CBAD     ;; # bad signature
                             'Y') echo $CEXPIRED ;; # good signature made by an expired key
                             'R') echo $CBAD     ;; # good signature made by a revoked key
                             'N') echo $CNONE    ;; # no signature
                        esac)
-           id_color=$ID_COLOR
+           hash_color=$HASH_COLOR
            date_color=$DATE_COLOR
            author_color=$((( has_author_sig )) && echo $sig_color || echo $AUTHOR_COLOR)
            msg_color=$MSG_COLOR
            ref_color=$REF_COLOR
-           cend=$CEND
       fi
 
-#     printf "$graph_color$(FilterJoinChars $graph) $cend"
-      printf "| $id_color$id$cend "
-      printf "$date_color$date$cend "
-      printf "$author_color%s$cend"    "$(FilterJoinChars $author)"
-      printf " $pad| $msg_color%s$cend" "$(FilterJoinChars $msg   )"
-      [[ "$ref" != "$JOIN_CHAR" ]] && printf " $ref_color($(FilterJoinChars $ref))$cend"
-      [[ "$sig" != "$JOIN_CHAR" ]] && printf " $sig_color[$(FilterJoinChars $sig)]$cend"
+#     printf "$graph_color$(FilterJoinChars $graph) $CEND"
+      printf "| $hash_color$id$CEND"
+      printf " $date_color$date$CEND"
+      printf " $author_color%s$CEND"    "$(FilterJoinChars $author)"
+      printf " $pad| $msg_color%s$CEND" "$(FilterJoinChars $msg   )"
+      [[ "$ref" != "$JOIN_CHAR" ]] && printf " $ref_color($(FilterJoinChars $ref))$CEND"
+      [[ "$sig" != "$JOIN_CHAR" ]] && printf " $sig_color[$(FilterJoinChars $sig)]$CEND"
       printf "\n"
   done
 
   NCommits=$(( NCommits + ${#Ids[*]} ))
 }
-
 
 Main()
 {
