@@ -248,14 +248,18 @@ CompileResults()
 PrintReport() # ( "header" )
 {
   local header="$1"
-  local hrule=$(printf "%$(( ( ( ${#Ids[0]} + 11 + AuthorW ) - ${#header} ) / 2 ))s" ' ' | tr ' ' '-')
+  local n_results=$(( ${#Ids[*]} ))
+  local pad_w=$(( ( -${#header} + ${#Ids[0]} + 1 + ${#Dates[0]} + AuthorW ) / 2 ))
+  local pad="$(printf "%${pad_w}s" ' ' | tr ' ' "$HRULE_CHAR")"
+  local hrule="|<${pad} ${header} ${pad:$(( pad_w > 0 && ! ( AuthorW % 2 ) ))}>|"
 
   local result_n graph id date author sig stat msg ref pad
   local has_author_sig sig_color hash_color date_color author_color msg_color ref_color
 
   # pretty print results
-  (( ! HIDE_MERGED )) && echo "|<${hrule} ${header} ${hrule:$(( ! ( AuthorW % 2 ) ))}>|"
-  for (( result_n = 0 ; result_n < ${#Ids[*]} ; ++result_n ))
+  (( ! HIDE_MERGED )) && echo "${hrule}"
+  (( ! n_results   )) && sed 's/[^|]/ /g ; s/^|       /| <None>/' <<<"${hrule}"
+  for (( result_n = 0 ; result_n < n_results ; ++result_n ))
   do  graph=${Graphs[$result_n]}
       id=${Ids[$result_n]}
       date=${Dates[$result_n]}
@@ -313,8 +317,7 @@ Main()
        CompileResults < <($log_cmd $ancestor..$REF $FILE ; echo ;) ; PrintReport ${header} ;
 
        if   (( ! HIDE_MERGED && NCommits < N_COMMITS ))
-       then (( ! NCommits )) && echo "    <None>"
-            log_cmd="$(printf "$GIT_LOG_CMD_FMT" $(( N_COMMITS - NCommits )))" header='MERGED'
+       then log_cmd="$(printf "$GIT_LOG_CMD_FMT" $(( N_COMMITS - NCommits )))" header='MERGED'
             CompileResults < <($log_cmd $ancestor $FILE  ; echo ;) ; PrintReport ${header} ;
        fi
   fi
