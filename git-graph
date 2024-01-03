@@ -17,8 +17,6 @@
 #  You should have received a copy of the GNU General Public License version 3
 #  along with git-graph.  If not, see <http://www.gnu.org/licenses/>.
 
-# USAGE: git-graph [ -a | -n <N_COMMITS> | -u ] [ branch_name | tag_name | commit_id | file ]
-
 
 ## configuration ##
 
@@ -58,7 +56,7 @@ readonly DATE_COLOR=$CNONE
 readonly AUTHOR_COLOR=$CNONE
 readonly MSG_COLOR=$CNONE
 readonly REF_COLOR=$CAQUA
-readonly REF_ERR_MSG="no such ref or file:"
+readonly REF_ERR_FMT="No such ref or file: %s\nSee \`$(basename $0) -h\` for usage.\n"
 declare -i USE_ANSI_COLOR=1 # (deferred)
 declare -i N_COMMITS=12     # (deferred)
 declare -i HIDE_MERGED=0    # (deferred)
@@ -116,7 +114,7 @@ DoesCidExist() # ( tag_name )
   [[ "$commit_id" ]] && git rev-parse --verify ${commit_id}^{commit} &> /dev/null
 }
 
-ValidateRef() # ( ref ) # where param is a branch_name, tag_name, commit_id
+ValidateRef() # ( ref ) # where ref is a branch_name, tag_name, commit_id
 {
   local ref=$1
 
@@ -169,6 +167,33 @@ FilterJoinChars() # ( an_unspaced_string )
 
 ## business ##
 
+Usage()
+{
+  cat <<EOF
+USAGE:
+  git-graph [ -a | -h | -m | -n <N_COMMITS> | -u ] [ <REF> | <FILE> ]
+
+    where: <REF> is for example: [ branch_name | tag_name | commit_hash ]
+           <FILE> is one of the files or directories under version control
+
+  If <REF> is unspecified, it will be the current HEAD.
+  If <FILE> is unspecified, all files under version control will be considered.
+
+  Note: Shell globbing is normally expanded by your shell before passing
+        arguments to programs; and so may include files which are not under
+        version control. Try to avoid asterisks and other glob operators.
+
+Options:
+  -a              List all log entries leading up to <REF> which touched <FILE>.
+  -h              Show this help message.
+  -m              Machine-readable. Do not output ANSI color codes.
+  -n <N_COMMITS>  List the most recent <N_COMMITS> number of log entries leading
+                  up to <REF> which touched <FILE> (default: $N_COMMITS).
+  -u              List only unmerged log entries, those not present on the
+                  remote tracking branch (or \$PUB_BRANCH, if defined).
+EOF
+}
+
 Init() # ( cli_args* )
 {
   local arg
@@ -179,10 +204,11 @@ Init() # ( cli_args* )
   local is_file
 
   # parse cli args
-  while getopts 'acn:u' arg
+  while getopts 'ahmn:u' arg
   do    case "${arg}" in
              a) N_COMMITS="$(git rev-list --count HEAD)" ;;
-             c) USE_ANSI_COLOR=0                         ;;
+             h) Usage ; exit 0 ;                         ;;
+             m) USE_ANSI_COLOR=0                         ;;
              n) N_COMMITS="${OPTARG}"                    ;;
              u) HIDE_MERGED=1                            ;;
              *) echo "Invalid argument: '${arg}'"        ;;
@@ -211,7 +237,7 @@ Init() # ( cli_args* )
 # echo "is_valid_param=$is_valid_param is_valid_ref=$is_valid_ref is_file=$is_file REF=$REF FILE=$FILE" # DEBUG
 
 
-  (( ! $# )) || (( is_valid_param )) || ! echo "$REF_ERR_MSG $1"
+  (( ! $# )) || (( is_valid_param )) || ! printf "$REF_ERR_FMT" "$1"
 }
 
 CompileResults()
