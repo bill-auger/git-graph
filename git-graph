@@ -109,15 +109,22 @@ FilterJoinChars() # (a_string)
 ## main entry ##
 
 # parse cli args
-while getopts 'n:' arg
+while getopts 'an:u' arg
 do    case "${arg}" in
-           n) n_commits="${OPTARG}" ;;
-           *) echo "Invalid argument: '${arg}'" ;;
+           a) n_commits="$(git rev-list --count HEAD)" ;;
+           n) n_commits="${OPTARG}"                    ;;
+           u) hide_merged=1                            ;;
+           *) echo "Invalid argument: '${arg}'"        ;;
       esac
 done
+
+# process cli args
+ref_param=$(ValidateRef "${!OPTIND}")
+[ -n "${!OPTIND}" ] && [ -z "$ref_param" ] && echo "no such branch, tag, or file: '${!OPTIND}'"
 readonly N_COMMITS=${n_commits:-12}
-readonly REF=$(ValidateRef "${!OPTIND}")
-[ -n "${!OPTIND}" ] && [ -z "$REF" ] && echo "no such branch, tag, or file: '${!OPTIND}'"
+# readonly REF=${ref_param}
+readonly REF=$( (( ${hide_merged} )) && [ -n "${ref_param}" ] && echo "${ref_param}..HEAD" || \
+                                                                 echo "${ref_param}"          )
 
 # compile results
 while read -r commit
