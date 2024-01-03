@@ -125,13 +125,15 @@ ValidateRef() # ( ref ) # where param is a branch_name, tag_name, commit_id
   echo $ref ; [[ -n "$ref" ]] ;
 }
 
-ValidateParam() # ( ref ) # where param is a branch_name, tag_name, commit_id, or file
+ValidateParam() # ( "param" ) # where param is a file, directory, or ref as ValidateRef()
 {
-  local ref=$1
+  local param="$1"
 
-  ref="$( ValidateRef $ref || [[ ! -f "$ref" ]] || echo $ref )"
+  param="$( ValidateRef $param                   ||
+          ( [[ -f "$param" ]] && echo $param   ) ||
+          ( [[ -d "$param" ]] && echo $param/* )  )"
 
-  echo $ref ; [[ -n "$ref" ]] ;
+  echo $param ; [[ -n "$param" ]] ;
 }
 
 IsAncestor() # ( ref_a ref_b )
