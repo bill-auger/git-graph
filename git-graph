@@ -20,13 +20,13 @@
 
 ## configuration ##
 
-# PUB_BRANCH eg: 'master', 'upstream/stable-1.0' - is remote tracking branch, if empty
-PUB_BRANCH=
+# PUB_BRANCH eg: 'master', 'upstream/stable-1.0' - is remote tracking branch, if undefined
+PUB_BRANCH=${PUB_BRANCH:-}
 
 
 ## constants ##
 
-readonly DEF_HASH_LEN=7 # git may extend to the minimum unique prefix
+readonly DEF_HASH_LEN=7 # NOTE: git may extend this to the minimum unique prefix
 readonly JOIN_CHAR='~'
 readonly HRULE_CHAR='-'
 readonly GRAPH_REGEX="(.+)"
