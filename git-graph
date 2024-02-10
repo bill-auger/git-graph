@@ -273,9 +273,9 @@ CompileResults()
   done
 }
 
-PrintReport() # ( "header" )
+PrintReport() # ( header... )
 {
-  local header="$1"
+  local header="$@"
   local n_results=$(( ${#Ids[*]} ))
   local pad_w=$(( ( -${#header} + ${#Ids[0]} + 1 + ${#Dates[0]} + AuthorW ) / 2 ))
   local pad="$(printf "%${pad_w}s" ' ' | tr ' ' "$HRULE_CHAR")"
@@ -337,10 +337,10 @@ Main()
 
   if   [[ -z "$PUB_BRANCH" ]]
   then log_cmd="$(printf "$GIT_LOG_CMD_FMT" $N_COMMITS)" header='NO UPSTREAM'
-       CompileResults < <($log_cmd              $REF $FILE ; echo ;) ; PrintReport "${header}" ;
+       CompileResults < <($log_cmd            $REF $FILE ; echo ;) ; PrintReport ${header} ;
   elif ! IsAncestor $PUB_BRANCH $REF && [[ -z ${ancestor:-} ]]
   then log_cmd="$(printf "$GIT_LOG_CMD_FMT" $N_COMMITS)" header='UNRELATED'
-       CompileResults < <($log_cmd              $REF $FILE ; echo ;) ; PrintReport ${header} ;
+       CompileResults < <($log_cmd            $REF $FILE ; echo ;) ; PrintReport ${header} ;
   else log_cmd="$(printf "$GIT_LOG_CMD_FMT" $N_COMMITS)" header='UNMERGED'
        CompileResults < <($log_cmd $ancestor..$REF $FILE ; echo ;) ; PrintReport ${header} ;
 
