@@ -62,6 +62,7 @@ declare -i N_COMMITS=12     # (deferred)
 declare -i HIDE_MERGED=0    # (deferred)
 REF=                        # (deferred)
 FILE=                       # (deferred)
+STDOUT_FILE=                # (deferred)
 
 
 ## variables ##
@@ -147,7 +148,7 @@ Ancestor() # ( ref_a ref_b )
   local ref_a=$1
   local ref_b=$2
 
-  git merge-base $ref_a $ref_b
+  git merge-base $ref_a $ref_b 2> /dev/null
 }
 
 JoinChars() # ( "a_spaced_string" )
@@ -226,12 +227,18 @@ Init() # ( cli_args* )
   FILE=$((( is_file         )) && echo $valid_param || echo $2        )
   PUB_BRANCH=${PUB_BRANCH:-$(GetUpstreamBranch $(GetCurrentBranch))}
 
+  # setup temp file
+  STDOUT_FILE=errs # TODO: make this a tmp file
+  trap 'Cleanup' EXIT
+
+  # finalize state
   readonly USE_ANSI_COLOR
   readonly N_COMMITS
   readonly HIDE_MERGED
   readonly REF
   readonly FILE
   readonly PUB_BRANCH
+  readonly STDOUT_FILE
 
 
 # echo "is_valid_param=$is_valid_param is_valid_ref=$is_valid_ref is_file=$is_file REF=$REF FILE=$FILE" # DEBUG
@@ -271,6 +278,15 @@ CompileResults()
 
         (( ${#author} > AuthorW )) && AuthorW=${#author}
   done
+}
+
+GitLog() # ( n_commits range file )
+{
+  declare -i n_commits=$1
+  local range=$2
+  local file=$3
+
+  $(printf "$GIT_LOG_CMD_FMT" $n_commits) $range $file 2>> "$STDOUT_FILE"
 }
 
 PrintReport() # ( header... )
@@ -330,25 +346,41 @@ PrintReport() # ( header... )
   NCommits=$(( NCommits + ${#Ids[*]} ))
 }
 
+PrintWarnings()
+{
+  if   grep 'gpg.ssh.allowedSignersFile' "$STDOUT_FILE" &> /dev/null
+  then echo -e "\nprocessing was delayed due to misconfigured 'gpg.ssh.allowedSignersFile'"
+  fi
+}
+
+Cleanup()
+{
+echo 'Cleanup()' >&2
+  rm "$STDOUT_FILE"
+}
+
 Main()
 {
   local ancestor=$(Ancestor $PUB_BRANCH $REF)
-  local log_cmd header
+  local n_commits=$N_COMMITS
 
   if   [[ -z "$PUB_BRANCH" ]]
-  then log_cmd="$(printf "$GIT_LOG_CMD_FMT" $N_COMMITS)" header='NO UPSTREAM'
-       CompileResults < <($log_cmd            $REF $FILE ; echo ;) ; PrintReport ${header} ;
+  then CompileResults < <(GitLog $n_commits            $REF $FILE ; echo ;)
+       PrintReport 'NO UPSTREAM'
   elif ! IsAncestor $PUB_BRANCH $REF && [[ -z ${ancestor:-} ]]
-  then log_cmd="$(printf "$GIT_LOG_CMD_FMT" $N_COMMITS)" header='UNRELATED'
-       CompileResults < <($log_cmd            $REF $FILE ; echo ;) ; PrintReport ${header} ;
-  else log_cmd="$(printf "$GIT_LOG_CMD_FMT" $N_COMMITS)" header='UNMERGED'
-       CompileResults < <($log_cmd $ancestor..$REF $FILE ; echo ;) ; PrintReport ${header} ;
+  then CompileResults < <(GitLog $n_commits            $REF $FILE ; echo ;)
+       PrintReport 'UNRELATED'
+  else CompileResults < <(GitLog $n_commits $ancestor..$REF $FILE ; echo ;)
+       PrintReport 'UNMERGED'
 
        if   (( ! HIDE_MERGED && NCommits < N_COMMITS ))
-       then log_cmd="$(printf "$GIT_LOG_CMD_FMT" $(( N_COMMITS - NCommits )))" header='MERGED'
-            CompileResults < <($log_cmd $ancestor $FILE  ; echo ;) ; PrintReport ${header} ;
+       then n_commits=$(( N_COMMITS - NCommits ))
+            CompileResults < <(GitLog $n_commits $ancestor $FILE  ; echo ;)
+            PrintReport 'MERGED'
        fi
   fi
+
+  PrintWarnings
 }
 
 
