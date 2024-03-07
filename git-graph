@@ -165,6 +165,11 @@ FilterJoinChars() # ( an_unspaced_string )
   echo $a_string | tr "$JOIN_CHAR" " "
 }
 
+Cleanup()
+{
+  rm "$STDOUT_FILE"
+}
+
 
 ## business ##
 
@@ -229,7 +234,7 @@ Init() # ( cli_args* )
   PUB_BRANCH=${PUB_BRANCH:-$(GetUpstreamBranch $(GetCurrentBranch))}
 
   # setup temp file
-  STDOUT_FILE=errs # TODO: make this a tmp file
+  STDOUT_FILE=git-graph-errs # TODO: make this a tmp file
   trap 'Cleanup' EXIT
 
   # finalize state
@@ -352,12 +357,6 @@ PrintWarnings()
   if   grep 'gpg.ssh.allowedSignersFile' "$STDOUT_FILE" &> /dev/null
   then echo -e "\nprocessing was delayed due to misconfigured 'gpg.ssh.allowedSignersFile'"
   fi
-}
-
-Cleanup()
-{
-echo 'Cleanup()' >&2
-  rm "$STDOUT_FILE"
 }
 
 Main()
