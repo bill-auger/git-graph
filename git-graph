@@ -20,7 +20,7 @@
 
 ## configuration ##
 
-# PUB_BRANCH eg: 'master', 'upstream/stable-1.0' - is remote tracking branch, if undefined
+# PUB_BRANCH or arg 1 - eg: 'master', 'upstream/stable-1.0' - is remote tracking branch, if undefined
 PUB_BRANCH=${PUB_BRANCH:-}
 
 
@@ -205,13 +205,14 @@ Init() # ( cli_args* )
   local is_file
 
   # parse cli args
-  while getopts 'ahmn:u' arg
+  while getopts 'ahmn:t:u' arg
   do    case "${arg}" in
-             a) N_COMMITS="$(git rev-list --count HEAD)" ;;
-             h) Usage ; exit 0 ;                         ;;
-             m) USE_ANSI_COLOR=0                         ;;
-             n) N_COMMITS="${OPTARG}"                    ;;
-             u) HIDE_MERGED=1                            ;;
+             a) N_COMMITS="$(git rev-list --count HEAD)" ;; # a -> report All
+             h) Usage ; exit 0 ;                         ;; # h -> Help
+             m) USE_ANSI_COLOR=0                         ;; # m -> Machine-readable
+             n) N_COMMITS="${OPTARG}"                    ;; # n -> Number of entries
+             t) PUB_BRANCH="${OPTARG}"                   ;; # m -> Trunk (merge-base)
+             u) HIDE_MERGED=1                            ;; # u -> Unmerged only
              *) echo "Invalid argument: '${arg}'"        ;;
         esac
   done
