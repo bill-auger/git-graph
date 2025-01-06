@@ -20,7 +20,9 @@
 
 ## configuration ##
 
-# PUB_BRANCH or arg 1 - eg: 'master', 'upstream/stable-1.0' - is remote tracking branch, if undefined
+# set PUB_BRANCH in the environment or via the `-t` arg
+# eg: 'master', 'upstream/stable-1.0'
+# is remote tracking branch, if undefined
 PUB_BRANCH=${PUB_BRANCH:-}
 
 
@@ -37,7 +39,7 @@ readonly SIG_REGEX="\[(([^\(\)]*) + *\(?.*\)? *<.*>|)\]"
 readonly STAT_REGEX="\[(.)\]"
 readonly MSG_REGEX="(.*)"
 readonly REFS_REGEX="\((.*)\)"
-readonly GIT_LOG_FMT="%%h${JOIN_CHAR}%%ad${JOIN_CHAR}%%an${JOIN_CHAR}[%%GS]${JOIN_CHAR}[%%G?]${JOIN_CHAR}%%s${JOIN_CHAR}(%%D)"
+readonly GIT_LOG_FMT="%%h${JOIN_CHAR}%%as${JOIN_CHAR}%%an${JOIN_CHAR}[%%GS]${JOIN_CHAR}[%%G?]${JOIN_CHAR}%%s${JOIN_CHAR}(%%D)"
 readonly GIT_LOG_CMD_FMT="git log --graph --date=short -n %d --pretty=format:$GIT_LOG_FMT --abbrev=${DEF_HASH_LEN}"
 readonly LOG_REGEX="^${GRAPH_REGEX} ${ID_REGEX}${JOIN_CHAR}${DATE_REGEX}${JOIN_CHAR}${AUTHOR_REGEX}${JOIN_CHAR}${SIG_REGEX}${JOIN_CHAR}${STAT_REGEX}${JOIN_CHAR}${MSG_REGEX}${JOIN_CHAR}${REFS_REGEX}$"
 readonly CWHITE='\033[0;37m'
@@ -186,8 +188,9 @@ USAGE:
   If <FILE> is unspecified, all files under version control will be considered.
 
   Note: Shell globbing is normally expanded by your shell before passing
-        arguments to programs; and so may include files which are not under
-        version control. Try to avoid asterisks and other glob operators.
+        arguments to programs, and so may include files which are not under
+        version control; which can lead to errors or inaccurate results. Try to
+        avoid asterisks and other glob operators in the arguments.
 
 Options:
   -a              List all log entries leading up to <REF> which touched <FILE>.
@@ -195,8 +198,10 @@ Options:
   -m              Machine-readable. Do not output ANSI color codes.
   -n <N_COMMITS>  List the most recent <N_COMMITS> number of log entries leading
                   up to <REF> which touched <FILE> (default: $N_COMMITS).
+  -t              Specify the trunk branch to be considered as the merge base.
   -u              List only unmerged log entries, those not present on the
-                  remote tracking branch (or \$PUB_BRANCH, if defined).
+                  remote tracking branch (or \$PUB_BRANCH, if defined)
+                  (currently: ${PUB_BRANCH:-undefined}).
 EOF
 }
 
