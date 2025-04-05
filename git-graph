@@ -29,7 +29,7 @@ PUB_BRANCH=${PUB_BRANCH:-}
 ## constants ##
 
 readonly DEF_HASH_LEN=7 # NOTE: git may extend this to the minimum unique prefix
-readonly JOIN_CHAR='~'
+readonly JOIN_CHAR='`'
 readonly HRULE_CHAR='-'
 readonly GRAPH_REGEX="(.+)"
 readonly ID_REGEX="(.+)"
