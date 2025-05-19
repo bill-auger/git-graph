@@ -20,9 +20,9 @@
 
 ## configuration ##
 
-# set PUB_BRANCH in the environment or via the `-t` arg
-# eg: 'master', 'upstream/stable-1.0'
-# is remote tracking branch, if undefined
+# set $PUB_BRANCH in the environment or via the `-t` arg
+#   eg: 'master', 'upstream/stable-1.0'
+# $PUB_BRANCH defaults to the remote tracking branch, if undefined
 PUB_BRANCH=${PUB_BRANCH:-}
 
 
