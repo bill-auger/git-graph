@@ -64,7 +64,7 @@ declare -i N_COMMITS=12     # (deferred)
 declare -i HIDE_MERGED=0    # (deferred)
 REF=                        # (deferred)
 FILE=                       # (deferred)
-STDOUT_FILE=                # (deferred)
+LOG_FILE=                # (deferred)
 
 
 ## variables ##
@@ -169,7 +169,7 @@ FilterJoinChars() # ( an_unspaced_string )
 
 Cleanup()
 {
-  rm "$STDOUT_FILE"
+  rm "$LOG_FILE"
 }
 
 
@@ -239,7 +239,7 @@ Init() # ( cli_args* )
   PUB_BRANCH=${PUB_BRANCH:-$(GetUpstreamBranch $(GetCurrentBranch))}
 
   # setup temp file
-  STDOUT_FILE=git-graph-errs # TODO: make this a tmp file
+  LOG_FILE=git-graph-errs # TODO: make this a tmp file
   trap 'Cleanup' EXIT
 
   # finalize state
@@ -249,7 +249,7 @@ Init() # ( cli_args* )
   readonly REF
   readonly FILE
   readonly PUB_BRANCH
-  readonly STDOUT_FILE
+  readonly LOG_FILE
 
 
 # echo "is_valid_param=$is_valid_param is_valid_ref=$is_valid_ref is_file=$is_file REF=$REF FILE=$FILE" # DEBUG
@@ -297,7 +297,7 @@ GitLog() # ( n_commits range file )
   local range=$2
   local file=$3
 
-  $(printf "$GIT_LOG_CMD_FMT" $n_commits) $range $file 2>> "$STDOUT_FILE"
+  $(printf "$GIT_LOG_CMD_FMT" $n_commits) $range $file 2>> "$LOG_FILE"
 }
 
 PrintReport() # ( header... )
@@ -359,7 +359,7 @@ PrintReport() # ( header... )
 
 PrintWarnings()
 {
-  if   grep 'gpg.ssh.allowedSignersFile' "$STDOUT_FILE" &> /dev/null
+  if   grep 'gpg.ssh.allowedSignersFile' "$LOG_FILE" &> /dev/null
   then echo -e "\nprocessing was delayed due to misconfigured 'gpg.ssh.allowedSignersFile'"
   fi
 }
